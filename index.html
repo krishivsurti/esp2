@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Firebase RC Car</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.10.1/nipplejs.min.js"></script>
+    <style>
+        body { background-color: #222; color: white; font-family: sans-serif; text-align: center; touch-action: none; overflow: hidden;}
+        .container { display: flex; flex-direction: column; align-items: center; justify-content: space-around; height: 100vh; }
+        .zone { width: 150px; height: 150px; position: relative; }
+        button { padding: 20px; margin: 10px; font-size: 18px; border-radius: 10px; border: none; cursor: pointer; width: 100px;}
+        .btn-horn { background-color: red; color: white; }
+        .btn-light { background-color: yellow; color: black; }
+        input[type=range] { width: 80%; margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Firebase RC Car</h2>
+        
+        <label>Throttle</label>
+        <input type="range" min="-100" max="100" value="0" id="throttle" oninput="updateCar()">
+
+        <div id="joystick_zone" class="zone"></div>
+
+        <div>
+            <button class="btn-horn" onmousedown="setBtn('horn', 1)" onmouseup="setBtn('horn', 0)">HORN</button>
+            <button class="btn-light" onclick="toggleLight()">LIGHTS</button>
+        </div>
+        <p id="status">Connecting...</p>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+        import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
+
+        // --- PASTE YOUR FIREBASE INFO HERE ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyCFEW0WjgjXW3XY520ZGnt8mVZhLMaQOKA",
+            databaseURL: "https://esp32-9725b-default-rtdb.firebaseio.com/"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        
+        document.getElementById("status").innerText = "Connected to Cloud!";
+
+        // --- CONTROL LOGIC ---
+        let steering = 0;
+        let throttle = 0;
+        let lightState = 0;
+
+        // Joystick Setup
+        var manager = nipplejs.create({
+            zone: document.getElementById('joystick_zone'),
+            mode: 'static',
+            position: {left: '50%', top: '50%'},
+            color: 'cyan'
+        });
+
+        manager.on('move', (evt, data) => {
+            steering = Math.round(data.vector.x * 100);
+            updateCar();
+        });
+
+        manager.on('end', () => {
+            steering = 0;
+            updateCar();
+        });
+
+        // Throttle Logic
+        document.getElementById("throttle").addEventListener('input', (e) => {
+            throttle = parseInt(e.target.value);
+            updateCar();
+        });
+
+        // Send Data to Firebase
+        // We limit updates to every 100ms to prevent flooding
+        let lastUpdate = 0;
+        function updateCar() {
+            const now = Date.now();
+            if (now - lastUpdate > 100) {
+                set(ref(db, 'car/controls'), {
+                    s: steering,
+                    t: throttle
+                });
+                lastUpdate = now;
+            }
+        }
+        
+        window.updateCar = updateCar; // Make global
+
+        // Button Logic
+        window.setBtn = function(name, val) {
+            set(ref(db, 'car/' + name), val);
+        }
+
+        window.toggleLight = function() {
+            lightState = !lightState ? 1 : 0; // Toggle 1 or 0
+            set(ref(db, 'car/lights'), lightState);
+        }
+    </script>
+</body>
+</html>
