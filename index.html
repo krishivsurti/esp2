@@ -1,86 +1,202 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Firebase RC Car</title>
+    <title>ESP32 Car Dashboard</title>
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.10.1/nipplejs.min.js"></script>
+    
     <style>
-        body { background-color: #222; color: white; font-family: sans-serif; text-align: center; touch-action: none; overflow: hidden;}
-        .container { display: flex; flex-direction: column; align-items: center; justify-content: space-around; height: 100vh; }
-        .zone { width: 150px; height: 150px; position: relative; }
-        button { padding: 20px; margin: 10px; font-size: 18px; border-radius: 10px; border: none; cursor: pointer; width: 100px;}
-        .btn-horn { background-color: red; color: white; }
-        .btn-light { background-color: yellow; color: black; }
-        input[type=range] { width: 80%; margin: 20px 0; }
+        body { 
+            background-color: #1a1a1a; 
+            color: white; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            text-align: center; 
+            touch-action: none; 
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            margin: 0;
+        }
+
+        h2 { margin: 10px 0; font-size: 20px; color: #ccc; }
+
+        /* Main Layout */
+        .container { 
+            flex: 1;
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: space-evenly; 
+            padding-bottom: 20px;
+        }
+
+        /* Joystick Area */
+        .zone { 
+            width: 100%; 
+            height: 200px; 
+            position: relative; 
+            background: #222;
+            border-radius: 20px;
+            border: 2px solid #444;
+            margin: 10px;
+            max-width: 400px;
+        }
+
+        /* Throttle Slider */
+        .slider-container { width: 90%; max-width: 400px; }
+        label { display: block; margin-bottom: 10px; font-weight: bold; }
+        input[type=range] { 
+            width: 100%; 
+            height: 40px; 
+            accent-color: #00bcd4; /* Cyan color */
+            cursor: pointer;
+        }
+
+        /* Buttons Grid */
+        .control-panel {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            width: 90%;
+            max-width: 400px;
+        }
+
+        button { 
+            padding: 15px; 
+            font-size: 16px; 
+            border-radius: 12px; 
+            border: none; 
+            cursor: pointer; 
+            font-weight: bold;
+            transition: transform 0.1s;
+        }
+        button:active { transform: scale(0.95); }
+
+        .btn-horn { background-color: #e53935; color: white; box-shadow: 0 4px #b71c1c; }
+        .btn-light { background-color: #fdd835; color: black; box-shadow: 0 4px #fbc02d; }
+        
+        /* Turn Signals Row */
+        .signal-row {
+            display: flex;
+            justify-content: space-between;
+            width: 90%;
+            max-width: 400px;
+            background: #333;
+            padding: 10px;
+            border-radius: 15px;
+            margin-top: 10px;
+        }
+
+        .btn-sig { flex: 1; margin: 0 5px; padding: 10px; font-size: 18px; color: white; background: #555; }
+        .btn-sig-left { border-left: 5px solid orange; }
+        .btn-sig-right { border-right: 5px solid orange; }
+        .btn-sig-off { background: #222; color: #888; }
+        .btn-haz { background: orange; color: black; font-size: 20px; }
+
+        #status { font-size: 12px; color: #666; margin-top: 5px;}
     </style>
 </head>
 <body>
+
     <div class="container">
-        <h2>Firebase RC Car</h2>
+        <h2>ESP32 REMOTE CONTROL</h2>
         
-        <label>Throttle</label>
-        <input type="range" min="-100" max="100" value="0" id="throttle" oninput="updateCar()">
-
-        <div id="joystick_zone" class="zone"></div>
-
-        <div>
-            <button class="btn-horn" onmousedown="setBtn('horn', 1)" onmouseup="setBtn('horn', 0)">HORN</button>
-            <button class="btn-light" onclick="toggleLight()">LIGHTS</button>
+        <div class="slider-container">
+            <label>THROTTLE / SPEED</label>
+            <input type="range" min="-100" max="100" value="0" id="throttle">
         </div>
-        <p id="status">Connecting...</p>
+
+        <div id="joystick_zone" class="zone">
+            <p style="position: absolute; top: 10px; width: 100%; color: #555;">STEERING</p>
+        </div>
+
+        <div class="control-panel">
+            <button class="btn-horn" onmousedown="setBtn('horn', 1)" onmouseup="setBtn('horn', 0)">🔊 HORN</button>
+            <button class="btn-light" onclick="toggleLight()">💡 HEADLIGHTS</button>
+        </div>
+
+        <div class="signal-row">
+            <button class="btn-sig btn-sig-left" onclick="setSignal(1)">&lt;</button>
+            <button class="btn-sig btn-sig-off" onclick="setSignal(0)">OFF</button>
+            <button class="btn-sig btn-sig-right" onclick="setSignal(2)">&gt;</button>
+            <button class="btn-sig btn-haz" onclick="setSignal(3)">⚠</button>
+        </div>
+        
+        <p id="status">Connecting to Cloud...</p>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
         import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
-        // --- PASTE YOUR FIREBASE INFO HERE ---
+        // --- 1. PASTE YOUR CONFIG HERE ---
         const firebaseConfig = {
-            apiKey: "AIzaSyCFEW0WjgjXW3XY520ZGnt8mVZhLMaQOKA",
-            databaseURL: "https://esp32-9725b-default-rtdb.firebaseio.com/"
+            apiKey: "PASTE_YOUR_API_KEY_HERE",
+            databaseURL: "https://YOUR-PROJECT-ID.firebaseio.com"
         };
 
-        // Initialize Firebase
+        // Initialize
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
-        
-        document.getElementById("status").innerText = "Connected to Cloud!";
+        document.getElementById("status").innerText = "• Online & Ready •";
+        document.getElementById("status").style.color = "#4caf50";
 
-        // --- CONTROL LOGIC ---
+        // --- GLOBAL VARIABLES ---
         let steering = 0;
         let throttle = 0;
         let lightState = 0;
 
-        // Joystick Setup
+        // --- 2. JOYSTICK SETUP ---
         var manager = nipplejs.create({
             zone: document.getElementById('joystick_zone'),
             mode: 'static',
             position: {left: '50%', top: '50%'},
-            color: 'cyan'
+            color: 'cyan',
+            size: 150
         });
 
+        // When Joystick Moves
         manager.on('move', (evt, data) => {
+            // Get X axis (Left/Right)
             steering = Math.round(data.vector.x * 100);
             updateCar();
         });
 
+        // When Joystick Released (Center)
         manager.on('end', () => {
             steering = 0;
             updateCar();
         });
 
-        // Throttle Logic
-        document.getElementById("throttle").addEventListener('input', (e) => {
+        // --- 3. THROTTLE SETUP ---
+        const throttleInput = document.getElementById("throttle");
+        
+        throttleInput.addEventListener('input', (e) => {
             throttle = parseInt(e.target.value);
             updateCar();
         });
 
-        // Send Data to Firebase
-        // We limit updates to every 100ms to prevent flooding
+        // Auto-center throttle when let go? (Optional: Uncomment to enable)
+        /*
+        throttleInput.addEventListener('touchend', () => {
+            throttleInput.value = 0;
+            throttle = 0;
+            updateCar();
+        });
+        throttleInput.addEventListener('mouseup', () => {
+            throttleInput.value = 0;
+            throttle = 0;
+            updateCar();
+        });
+        */
+
+        // --- 4. SEND DATA FUNCTION ---
+        // Sends updates to Firebase max every 50ms to prevent lag
         let lastUpdate = 0;
         function updateCar() {
             const now = Date.now();
-            if (now - lastUpdate > 100) {
+            if (now - lastUpdate > 50) { 
                 set(ref(db, 'car/controls'), {
                     s: steering,
                     t: throttle
@@ -88,18 +204,25 @@
                 lastUpdate = now;
             }
         }
-        
-        window.updateCar = updateCar; // Make global
 
-        // Button Logic
+        // --- 5. BUTTON FUNCTIONS ---
+        
+        // Horn (Push to honk)
         window.setBtn = function(name, val) {
             set(ref(db, 'car/' + name), val);
         }
 
+        // Lights (Toggle On/Off)
         window.toggleLight = function() {
-            lightState = !lightState ? 1 : 0; // Toggle 1 or 0
+            lightState = !lightState ? 1 : 0;
             set(ref(db, 'car/lights'), lightState);
         }
+
+        // Signals (0=Off, 1=Left, 2=Right, 3=Hazard)
+        window.setSignal = function(val) {
+            set(ref(db, 'car/signal'), val);
+        }
+
     </script>
 </body>
 </html>
