@@ -1,198 +1,315 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>ESP32 Car Dashboard</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>RC Cyber Deck</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.10.1/nipplejs.min.js"></script>
-    
     <style>
-        body { 
-            background-color: #1a1a1a; 
-            color: white; 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            text-align: center; 
-            touch-action: none; 
+        /* --- CORE SETUP --- */
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+        body {
+            margin: 0; padding: 0;
+            background-color: #0d0d0d;
+            font-family: 'Courier New', Courier, monospace;
+            color: #00f3ff;
             overflow: hidden;
+            height: 100vh;
             display: flex;
             flex-direction: column;
-            height: 100vh;
-            margin: 0;
+            background-image: 
+                linear-gradient(rgba(0, 255, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 255, 0.05) 1px, transparent 1px);
+            background-size: 20px 20px;
         }
 
-        h2 { margin: 10px 0; font-size: 20px; color: #ccc; }
-
-        /* Main Layout */
-        .container { 
-            flex: 1;
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            justify-content: space-evenly; 
-            padding-bottom: 20px;
-        }
-
-        /* Joystick Area */
-        .zone { 
-            width: 100%; 
-            height: 200px; 
-            position: relative; 
-            background: #222;
-            border-radius: 20px;
-            border: 2px solid #444;
-            margin: 10px;
-            max-width: 400px;
-        }
-
-        /* Throttle Slider */
-        .slider-container { width: 90%; max-width: 400px; }
-        label { display: block; margin-bottom: 10px; font-weight: bold; }
-        input[type=range] { 
-            width: 100%; 
-            height: 40px; 
-            accent-color: #00bcd4; /* Cyan color */
-            cursor: pointer;
-        }
-
-        /* Buttons Grid */
-        .control-panel {
+        /* --- LAYOUT GRID --- */
+        .dashboard {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            width: 90%;
-            max-width: 400px;
-        }
-
-        button { 
-            padding: 15px; 
-            font-size: 16px; 
-            border-radius: 12px; 
-            border: none; 
-            cursor: pointer; 
-            font-weight: bold;
-            transition: transform 0.1s;
-        }
-        button:active { transform: scale(0.95); }
-
-        .btn-horn { background-color: #e53935; color: white; box-shadow: 0 4px #b71c1c; }
-        .btn-light { background-color: #fdd835; color: black; box-shadow: 0 4px #fbc02d; }
-        
-        /* Turn Signals Row */
-        .signal-row {
-            display: flex;
-            justify-content: space-between;
-            width: 90%;
-            max-width: 400px;
-            background: #333;
+            grid-template-columns: 1fr 0.8fr 1fr; /* Left (Steer), Center (Info), Right (Action) */
+            height: 100%;
+            width: 100%;
             padding: 10px;
-            border-radius: 15px;
-            margin-top: 10px;
         }
 
-        .btn-sig { flex: 1; margin: 0 5px; padding: 10px; font-size: 18px; color: white; background: #555; }
-        .btn-sig-left { border-left: 5px solid orange; }
-        .btn-sig-right { border-right: 5px solid orange; }
-        .btn-sig-off { background: #222; color: #888; }
-        .btn-haz { background: orange; color: black; font-size: 20px; }
+        /* --- ZONES --- */
+        .zone-left { position: relative; border-right: 1px solid #333; }
+        .zone-center { 
+            display: flex; flex-direction: column; 
+            justify-content: center; align-items: center; 
+            gap: 15px; 
+        }
+        .zone-right { 
+            display: flex; flex-direction: column; 
+            justify-content: space-evenly; align-items: center; 
+            border-left: 1px solid #333;
+        }
 
-        #status { font-size: 12px; color: #666; margin-top: 5px;}
+        /* --- JOYSTICK AREA --- */
+        #joystick_zone {
+            width: 100%; height: 100%;
+            position: absolute; top: 0; left: 0;
+            background: radial-gradient(circle at center, #1a1a1a 0%, transparent 70%);
+        }
+        .joy-label {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            color: #555; font-size: 12px; letter-spacing: 2px;
+        }
+
+        /* --- THROTTLE SLIDER (VERTICAL) --- */
+        .throttle-container {
+            position: relative;
+            height: 60%; width: 60px;
+            background: #111;
+            border-radius: 30px;
+            border: 2px solid #333;
+            box-shadow: inset 0 0 10px #000;
+        }
+        input[type=range][orient=vertical] {
+            writing-mode: bt-lr; /* IE */
+            -webkit-appearance: slider-vertical; /* WebKit */
+            width: 100%; height: 100%;
+            opacity: 0; z-index: 2; cursor: pointer;
+        }
+        .throttle-track {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 4px; height: 90%; background: #444;
+        }
+        .throttle-thumb {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 40px; height: 20px; background: #00f3ff;
+            border-radius: 4px; box-shadow: 0 0 10px #00f3ff;
+            transition: top 0.1s;
+        }
+
+        /* --- BUTTONS --- */
+        button {
+            border: none; outline: none;
+            font-weight: bold; cursor: pointer;
+            text-transform: uppercase;
+            box-shadow: 0 4px 0 #000;
+            transition: all 0.1s;
+        }
+        button:active { transform: translateY(4px); box-shadow: 0 0 0 #000; }
+
+        /* HORN (Big Red Button) */
+        .btn-horn {
+            width: 80px; height: 80px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #ff3d00 0%, #b71c1c 100%);
+            border: 2px solid #ff3d00;
+            color: white; font-size: 12px;
+            box-shadow: 0 0 15px rgba(255, 61, 0, 0.4);
+        }
+        .btn-horn:active { background: #ff3d00; box-shadow: 0 0 25px #ff3d00; }
+
+        /* HEADLIGHTS (Toggle Switch Look) */
+        .btn-light {
+            width: 80%; padding: 12px;
+            background: #222; color: #aaa;
+            border: 1px solid #444; border-radius: 5px;
+        }
+        .btn-light.active {
+            background: #ffeb3b; color: #000;
+            box-shadow: 0 0 15px #ffeb3b; border-color: #ffeb3b;
+        }
+
+        /* SIGNALS (Arrows) */
+        .signal-grid {
+            display: flex; gap: 10px; width: 100%; justify-content: center;
+        }
+        .btn-sig {
+            width: 50px; height: 40px;
+            background: #222; color: #555;
+            border: 1px solid #333; clip-path: polygon(20% 0%, 80% 0%, 100% 100%, 0% 100%);
+        }
+        .btn-sig.active-left { background: #ff9800; color: black; box-shadow: -5px 0 10px #ff9800; }
+        .btn-sig.active-right { background: #ff9800; color: black; box-shadow: 5px 0 10px #ff9800; }
+        .btn-haz { background: #333; color: red; font-size: 18px; }
+        .btn-haz.active { background: red; color: white; animation: flash 0.5s infinite; }
+
+        @keyframes flash { 0% {opacity: 1;} 50% {opacity: 0.5;} 100% {opacity: 1;} }
+
+        /* --- STATUS HEADER --- */
+        .status-bar {
+            position: absolute; top: 10px; width: 100%; text-align: center;
+            font-size: 10px; color: #555; pointer-events: none;
+        }
+        .status-dot {
+            display: inline-block; width: 8px; height: 8px; 
+            border-radius: 50%; background: #444; margin-right: 5px;
+        }
+        .online { background: #00ff00; box-shadow: 0 0 8px #00ff00; }
+
+        /* --- MEDIA QUERY FOR PORTRAIT PHONES --- */
+        @media (max-width: 600px) {
+            .dashboard { grid-template-columns: 1fr; grid-template-rows: 1fr 0.5fr 1fr; }
+            .zone-left { border-right: none; border-bottom: 1px solid #333; }
+            .zone-right { border-left: none; border-top: 1px solid #333; flex-direction: row; padding: 20px;}
+            .throttle-container { height: 100px; width: 40px; margin-right: 20px;}
+        }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <h2>ESP32 REMOTE CONTROL</h2>
+    <div class="status-bar">
+        <span id="conn-dot" class="status-dot"></span> <span id="status-text">DISCONNECTED</span>
+    </div>
+
+    <div class="dashboard">
         
-        <div class="slider-container">
-            <label>THROTTLE / SPEED</label>
-            <input type="range" min="-100" max="100" value="0" id="throttle">
+        <div class="zone-left">
+            <div id="joystick_zone"></div>
+            <div class="joy-label">STEERING</div>
         </div>
 
-        <div id="joystick_zone" class="zone">
-            <p style="position: absolute; top: 10px; width: 100%; color: #555;">STEERING</p>
+        <div class="zone-center">
+            <button id="btn-headlight" class="btn-light" onclick="toggleLight()">HEADLIGHTS</button>
+            
+            <div class="signal-grid">
+                <button id="sig-l" class="btn-sig" onclick="setSignal(1)">◄</button>
+                <button id="sig-off" class="btn-sig" onclick="setSignal(0)">■</button>
+                <button id="sig-r" class="btn-sig" onclick="setSignal(2)">►</button>
+            </div>
+            <button id="sig-haz" class="btn-sig btn-haz" style="width: 100%;" onclick="setSignal(3)">⚠ HAZARD</button>
         </div>
 
-        <div class="control-panel">
-            <button class="btn-horn" onmousedown="setBtn('horn', 1)" onmouseup="setBtn('horn', 0)">🔊 HORN</button>
-            <button class="btn-light" onclick="toggleLight()">💡 HEADLIGHTS</button>
-        </div>
+        <div class="zone-right">
+            
+            <div class="throttle-container">
+                <div class="throttle-track"></div>
+                <div id="thumb-visual" class="throttle-thumb"></div>
+                <input type="range" min="-100" max="100" value="0" id="throttle" 
+                       style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; margin:0;" 
+                       orient="vertical">
+            </div>
 
-        <div class="signal-row">
-            <button class="btn-sig btn-sig-left" onclick="setSignal(1)">&lt;</button>
-            <button class="btn-sig btn-sig-off" onclick="setSignal(0)">OFF</button>
-            <button class="btn-sig btn-sig-right" onclick="setSignal(2)">&gt;</button>
-            <button class="btn-sig btn-haz" onclick="setSignal(3)">⚠</button>
+            <button class="btn-horn" id="horn-btn">HORN</button>
         </div>
-        
-        <p id="status">Connecting to Cloud...</p>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
         import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
-        // --- 1. PASTE YOUR CONFIG HERE ---
+        // --- PASTE CONFIG HERE ---
         const firebaseConfig = {
             apiKey: "AIzaSyCFEW0WjgjXW3XY520ZGnt8mVZhLMaQOKA",
             databaseURL: "https://esp32-9725b-default-rtdb.firebaseio.com/"
         };
 
-        // Initialize
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
-        document.getElementById("status").innerText = "• Online & Ready •";
-        document.getElementById("status").style.color = "#4caf50";
 
-        // --- GLOBAL VARIABLES ---
+        // Connection Status
+        document.getElementById("status-text").innerText = "SYSTEM ONLINE";
+        document.getElementById("status-text").style.color = "#00f3ff";
+        document.getElementById("conn-dot").classList.add("online");
+
+        // Variables
         let steering = 0;
         let throttle = 0;
         let lightState = 0;
 
-        // --- 2. JOYSTICK SETUP ---
+        // --- 1. JOYSTICK ---
         var manager = nipplejs.create({
             zone: document.getElementById('joystick_zone'),
             mode: 'static',
             position: {left: '50%', top: '50%'},
-            color: 'cyan',
+            color: '#00f3ff',
             size: 150
         });
 
-        // When Joystick Moves
         manager.on('move', (evt, data) => {
-            // Get X axis (Left/Right)
             steering = Math.round(data.vector.x * 100);
             updateCar();
         });
 
-        // When Joystick Released (Center)
         manager.on('end', () => {
             steering = 0;
             updateCar();
         });
 
-        // --- 3. THROTTLE SETUP ---
+        // --- 2. THROTTLE SLIDER ---
         const throttleInput = document.getElementById("throttle");
-        
+        const thumbVisual = document.getElementById("thumb-visual");
+
         throttleInput.addEventListener('input', (e) => {
-            throttle = parseInt(e.target.value);
+            // Invert value because HTML vertical range sliders are often weird
+            // Usually Up is Min, Down is Max, or vice versa depending on browser.
+            // We want Up = 100, Center = 0, Down = -100
+            // Let's standardise: input value -100 to 100.
+            let val = parseInt(e.target.value);
+            
+            // For vertical slider, usually bottom is min (-100).
+            throttle = val;
+            
+            // Move visual thumb
+            // Map -100..100 to 90%..10% (Top css)
+            let percent = 50 - (val / 2); 
+            thumbVisual.style.top = percent + "%";
+            
             updateCar();
         });
 
-        // Auto-center throttle when let go? (Optional: Uncomment to enable)
-        /*
-        throttleInput.addEventListener('touchend', () => {
-            throttleInput.value = 0;
-            throttle = 0;
-            updateCar();
-        });
-        throttleInput.addEventListener('mouseup', () => {
-            throttleInput.value = 0;
-            throttle = 0;
-            updateCar();
-        });
-        */
+        // Auto-Center Throttle on Release
+        throttleInput.addEventListener('touchend', resetThrottle);
+        throttleInput.addEventListener('mouseup', resetThrottle);
 
-        // --- 4. SEND DATA FUNCTION ---
-        // Sends updates to Firebase max every 50ms to prevent lag
+        function resetThrottle() {
+            throttleInput.value = 0;
+            throttle = 0;
+            thumbVisual.style.top = "50%";
+            updateCar();
+        }
+
+        // --- 3. HORN (THE FIX) ---
+        // We use 'touchstart' and 'touchend' with preventDefault to stop selection menus
+        const hornBtn = document.getElementById("horn-btn");
+
+        hornBtn.addEventListener("touchstart", (e) => {
+            e.preventDefault(); // STOPS CONTEXT MENU
+            set(ref(db, 'car/horn'), 1);
+            hornBtn.style.transform = "scale(0.95)";
+        }, {passive: false});
+
+        hornBtn.addEventListener("touchend", (e) => {
+            e.preventDefault();
+            set(ref(db, 'car/horn'), 0);
+            hornBtn.style.transform = "scale(1)";
+        }, {passive: false});
+
+        // Mouse fallbacks for PC testing
+        hornBtn.addEventListener("mousedown", () => set(ref(db, 'car/horn'), 1));
+        hornBtn.addEventListener("mouseup", () => set(ref(db, 'car/horn'), 0));
+
+
+        // --- 4. LIGHTS & SIGNALS ---
+        window.toggleLight = function() {
+            lightState = !lightState ? 1 : 0;
+            set(ref(db, 'car/lights'), lightState);
+            
+            // Visual Toggle
+            const btn = document.getElementById("btn-headlight");
+            if(lightState) btn.classList.add("active");
+            else btn.classList.remove("active");
+        }
+
+        window.setSignal = function(val) {
+            set(ref(db, 'car/signal'), val);
+            
+            // Clear all styles
+            document.getElementById("sig-l").classList.remove("active-left");
+            document.getElementById("sig-r").classList.remove("active-right");
+            document.getElementById("sig-haz").classList.remove("active");
+            
+            // Apply new style
+            if(val == 1) document.getElementById("sig-l").classList.add("active-left");
+            if(val == 2) document.getElementById("sig-r").classList.add("active-right");
+            if(val == 3) document.getElementById("sig-haz").classList.add("active");
+        }
+
+        // --- 5. NETWORK LOOP ---
         let lastUpdate = 0;
         function updateCar() {
             const now = Date.now();
@@ -204,26 +321,6 @@
                 lastUpdate = now;
             }
         }
-
-        // --- 5. BUTTON FUNCTIONS ---
-        
-        // Horn (Push to honk)
-        window.setBtn = function(name, val) {
-            set(ref(db, 'car/' + name), val);
-        }
-
-        // Lights (Toggle On/Off)
-        window.toggleLight = function() {
-            lightState = !lightState ? 1 : 0;
-            set(ref(db, 'car/lights'), lightState);
-        }
-
-        // Signals (0=Off, 1=Left, 2=Right, 3=Hazard)
-        window.setSignal = function(val) {
-            set(ref(db, 'car/signal'), val);
-        }
-
     </script>
 </body>
 </html>
-
